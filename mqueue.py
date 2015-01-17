@@ -1,7 +1,8 @@
 import memcache, random, string
 mc = memcache.Client(['127.0.0.1:11211'], debug=0)
 
-
+HEAD_KEY = "mqueuehead"
+TAIL_KEY = "mqueuetail"
 SEPARATOR = "___"
 VALUE_KEY = "value"
 LINK_KEY = "link"
@@ -14,8 +15,8 @@ def random_id():
 
 class MQueue:
 	def __init__(self):
-		self.head = None
-		self.tail = None
+		self.head = mc.get(HEAD_KEY)
+		self.tail = mc.get(TAIL_KEY)
 
 	def is_empty(self):
 		if self.head:
@@ -30,6 +31,7 @@ class MQueue:
 		if self.tail:
 			mc.set(self.tail+SEPARATOR+LINK_KEY, new_key)
 		self.tail = new_key
+		mc.set(TAIL_KEY, self.tail)
 
 	def dequeue(self):
 		if self.is_empty():
@@ -40,8 +42,10 @@ class MQueue:
 		mc.delete(self.head+SEPARATOR+VALUE_KEY)
 		if not nxt:
 			self.head = None
+			mc.delete(HEAD_KEY)
 		else:
 			self.head = nxt
+			mc.set(HEAD_KEY, self.head)
 		return val
 
 
