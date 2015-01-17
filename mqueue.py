@@ -1,8 +1,8 @@
 import memcache, random, string
 mc = memcache.Client(['127.0.0.1:11211'], debug=0)
 
-HEAD_KEY = "mqueuehead"
-TAIL_KEY = "mqueuetail"
+HEAD_KEY = "mqueueheadpointer"
+TAIL_KEY = "mqueuetailpointer"
 SEPARATOR = "___"
 VALUE_KEY = "value"
 LINK_KEY = "link"
@@ -15,38 +15,42 @@ def random_id():
 
 class MQueue:
 	def __init__(self):
-		self.head = mc.get(HEAD_KEY)
-		self.tail = mc.get(TAIL_KEY)
+		pass
 
 	def is_empty(self):
-		if self.head:
+		if self.get_head():
 			return False
 		return True
 
 	def queue(self, value):
 		new_key = random_id()
 		mc.set(new_key + SEPARATOR + VALUE_KEY, value)
-		if not self.head:
-			self.head = new_key
-		if self.tail:
-			mc.set(self.tail+SEPARATOR+LINK_KEY, new_key)
-		self.tail = new_key
-		mc.set(TAIL_KEY, self.tail)
+		if not self.get_head():
+			mc.set(HEAD_KEY, new_key)
+		if self.get_tail():
+			mc.set(self.get_tail()+SEPARATOR+LINK_KEY, new_key)
+		mc.set(TAIL_KEY, new_key)
 
 	def dequeue(self):
 		if self.is_empty():
 			return None
-		val = mc.get(self.head+SEPARATOR+VALUE_KEY)
-		nxt = mc.get(self.head+SEPARATOR+LINK_KEY)
-		mc.delete(self.head+SEPARATOR+LINK_KEY)
-		mc.delete(self.head+SEPARATOR+VALUE_KEY)
+		head = self.get_head()
+		val = mc.get(head+SEPARATOR+VALUE_KEY)
+		nxt = mc.get(head+SEPARATOR+LINK_KEY)
+		mc.delete(head+SEPARATOR+LINK_KEY)
+		mc.delete(head+SEPARATOR+VALUE_KEY)
 		if not nxt:
-			self.head = None
 			mc.delete(HEAD_KEY)
+			mc.delete(TAIL_KEY)
 		else:
-			self.head = nxt
-			mc.set(HEAD_KEY, self.head)
+			mc.set(HEAD_KEY, nxt)
 		return val
+
+	def get_head(self):
+		return mc.get(HEAD_KEY)
+
+	def get_tail(self):
+		return mc.get(TAIL_KEY)
 
 
 
